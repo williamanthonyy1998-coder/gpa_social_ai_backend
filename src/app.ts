@@ -40,3 +40,6 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   if (res.headersSent) return;
   res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred.' }, meta: { requestId: res.locals.requestId } });
 });
+
+// Required by Vercel Express runtime (entry: src/app.ts).
+export default app;
