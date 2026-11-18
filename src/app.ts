@@ -18,7 +18,8 @@ import { mediaRouter } from './modules/content/media.routes.js';
 export const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
-app.use(helmet());
+// Cast: Vercel Node TS can type helmet's dual-package default export as a non-callable namespace.
+app.use((helmet as unknown as () => express.RequestHandler)());
 app.use(cors({ origin: env.WEB_ORIGIN, credentials: true, methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'X-Request-Id'] }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
