@@ -4,7 +4,8 @@ import { z } from 'zod';
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   API_PORT: z.coerce.number().int().positive().default(4000),
-  WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
+  // Browsers send Origin without a trailing slash; normalize so CORS matches.
+  WEB_ORIGIN: z.string().url().default('http://localhost:5173').transform(v => v.replace(/\/$/, '')),
   SESSION_COOKIE_NAME: z.string().default('gpa_social_session'),
   SESSION_TTL_HOURS: z.coerce.number().positive().default(12),
   COOKIE_SECURE: z.enum(['true', 'false']).default('false').transform(v => v === 'true'),

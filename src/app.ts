@@ -19,11 +19,13 @@ export const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 // Cast: Vercel Node TS can type helmet's dual-package default export as a non-callable namespace.
-app.use((helmet as unknown as () => express.RequestHandler)());
+// crossOriginResourcePolicy must be cross-origin so the separate frontend deployment can read API responses.
+app.use((helmet as unknown as (options?: object) => express.RequestHandler)({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({ origin: env.WEB_ORIGIN, credentials: true, methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'X-Request-Id'] }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use(requestContext);
+app.get('/', (_req, res) => res.json({ status: 'ok', service: 'gpa-social-ai-api', health: '/health', apiBase: '/api/v1' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'gpa-social-ai-api' }));
 app.use('/api/v1/auth', rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: 'draft-8', legacyHeaders: false }), authRouter);
 app.use('/api/v1/users', usersRouter);
