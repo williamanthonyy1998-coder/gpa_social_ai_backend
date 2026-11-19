@@ -1,6 +1,14 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
+// Cross-origin browser sessions (separate Vercel frontend + API hosts) require
+// SameSite=None; Secure. When WEB_ORIGIN is https and cookie env vars are unset,
+// default to that pair so production does not silently ship SameSite=Lax.
+const webOriginInput = (process.env.WEB_ORIGIN ?? 'http://localhost:5173').replace(/\/$/, '');
+const httpsFrontend = webOriginInput.startsWith('https://');
+const defaultSameSite = httpsFrontend ? 'none' : 'lax';
+const defaultSecure = httpsFrontend ? 'true' : 'false';
+
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   API_PORT: z.coerce.number().int().positive().default(4000),
@@ -8,11 +16,17 @@ const schema = z.object({
   WEB_ORIGIN: z.string().url().default('http://localhost:5173').transform(v => v.replace(/\/$/, '')),
   SESSION_COOKIE_NAME: z.string().default('gpa_social_session'),
   SESSION_TTL_HOURS: z.coerce.number().positive().default(12),
-  COOKIE_SECURE: z.enum(['true', 'false']).default('false').transform(v => v === 'true'),
-  COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  COOKIE_SECURE: z.enum(['true', 'false']).default(defaultSecure).transform(v => v === 'true'),
+  COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default(defaultSameSite),
   BCRYPT_ROUNDS: z.coerce.number().int().min(10).max(15).default(12),
 }).superRefine((value, ctx) => {
-  if (value.COOKIE_SAME_SITE === 'none' && !value.COOKIE_SECURE) ctx.addIssue({ code: 'custom', path: ['COOKIE_SECURE'], message: 'COOKIE_SECURE must be true when COOKIE_SAME_SITE is none.' });
+  if (value.COOKIE_SAME_SITE === 'none' && !value.COOKIE_SECURE) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['COOKIE_SECURE'],
+      message: 'COOKIE_SECURE must be true when COOKIE_SAME_SITE is none.',
+    });
+  }
 });
 
 const parsed = schema.safeParse(process.env);

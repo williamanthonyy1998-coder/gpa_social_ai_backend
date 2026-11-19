@@ -9,7 +9,16 @@ import { requireAuth } from '../../middleware/auth.js';
 
 export const authRouter = Router();
 const loginSchema = z.object({ email: z.string().email().max(254), password: z.string().min(1).max(200), organizationSlug: z.string().trim().toLowerCase().min(2).max(80).regex(/^[a-z0-9-]+$/).optional() });
-const cookieOptions = { httpOnly: true, secure: env.COOKIE_SECURE, sameSite: env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none', path: '/', maxAge: env.SESSION_TTL_HOURS * 60 * 60 * 1000 };
+// Separate HTTPS frontend/API hosts (e.g. *.vercel.app) are cross-site: browsers drop
+// SameSite=Lax cookies on fetch/XHR. Prefer explicit env, but never ship Lax over HTTPS WEB_ORIGIN.
+const crossSiteHttps = env.WEB_ORIGIN.startsWith('https://');
+const cookieOptions = {
+  httpOnly: true,
+  secure: crossSiteHttps || env.COOKIE_SECURE,
+  sameSite: (crossSiteHttps ? 'none' : env.COOKIE_SAME_SITE) as 'lax' | 'strict' | 'none',
+  path: '/',
+  maxAge: env.SESSION_TTL_HOURS * 60 * 60 * 1000,
+};
 
 authRouter.post('/login', asyncHandler(async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
@@ -38,7 +47,12 @@ authRouter.post('/logout', requireAuth, asyncHandler(async (req, res) => {
     await prisma.userSession.updateMany({ where: { tokenHash, status: 'ACTIVE' }, data: { status: 'REVOKED', revokedAt: new Date() } });
     await prisma.auditLog.create({ data: { organizationId: req.auth!.organizationId, userId: req.auth!.userId, entityType: 'UserSession', entityId: req.auth!.userId, action: 'AUTH_LOGOUT', ipAddress: req.ip, correlationId: res.locals.requestId } });
   }
-  res.clearCookie(env.SESSION_COOKIE_NAME, { httpOnly: true, secure: env.COOKIE_SECURE, sameSite: env.COOKIE_SAME_SITE as 'lax' | 'strict' | 'none', path: '/' });
+  res.clearCookie(env.SESSION_COOKIE_NAME, {
+    httpOnly: true,
+    secure: cookieOptions.secure,
+    sameSite: cookieOptions.sameSite,
+    path: '/',
+  });
   return ok(res, { loggedOut: true });
 }));
 
